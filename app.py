@@ -80,7 +80,7 @@ def rank_existing_database(custom_jd):
     global pool_embeddings, candidate_pool, embedding_model
     
     if not candidate_pool or pool_embeddings is None:
-        return "Error: Candidate database not loaded on Space."
+        return pd.DataFrame([{"Error": "Candidate database not loaded on Hugging Face Space."}])
         
     # Embed custom JD
     custom_jd_emb = embedding_model.encode(custom_jd, convert_to_numpy=True)
@@ -95,7 +95,7 @@ def rank_uploaded_resumes(file_obj, custom_jd):
     global embedding_model
     
     if file_obj is None:
-        return "Please upload a candidate file."
+        return pd.DataFrame([{"Error": "Please upload a candidate JSON/JSONL file."}])
         
     import json
     candidates = []
@@ -116,10 +116,10 @@ def rank_uploaded_resumes(file_obj, custom_jd):
             else:
                 candidates = [extract_candidate_features(raw_list)]
     except Exception as e:
-        return f"Error reading file: {str(e)}. Ensure it is a valid JSON array or JSONL format."
+        return pd.DataFrame([{"Error": f"Error reading file: {str(e)}"}])
         
     if not candidates:
-        return "No valid candidates found in file."
+        return pd.DataFrame([{"Error": "No valid candidates found in file."}])
         
     # Generate text for embedding
     texts = []
