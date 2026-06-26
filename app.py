@@ -43,9 +43,13 @@ def initialize_app():
         
     # Load raw candidate records (up to 10k for memory limits on Hugging Face CPU Space)
     candidates_path = os.path.join("data", "candidates.jsonl")
+    if not os.path.exists(candidates_path):
+        # Fallback to absolute testing path
+        candidates_path = "D:/AI Recruiter Hackathon/Testing Data/candidates.jsonl"
+        
     if os.path.exists(candidates_path):
         import json
-        print("Loading candidate records for custom JD matching...")
+        print(f"Loading candidate records from: {candidates_path}...")
         with open(candidates_path, "r", encoding="utf-8") as f:
             for i, line in enumerate(f):
                 if i >= 10000:
