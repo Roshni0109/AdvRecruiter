@@ -36,8 +36,8 @@ from src.feature_engineering import (
     embed_job_description,
     compute_candidate_embeddings,
     compute_all_features,
-    compute_final_score,
 )
+from src.ranker import compute_final_score
 
 
 def load_sample_candidates(filepath: str) -> list[dict]:
