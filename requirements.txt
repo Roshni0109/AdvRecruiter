@@ -1,33 +1,8 @@
-# ─────────────────────────────────────────────
-# AdvRecruiter — Python Dependencies
-# Install with: pip install -r requirements.txt
-#
-# NOTE: We use >= instead of == so pip can find
-# pre-built binary packages (wheels) for Windows.
-# This avoids needing C++ compiler tools to install.
-# ─────────────────────────────────────────────
-
-# Data handling — like Excel in Python
-pandas>=2.0.0
-
-# Fast math / array operations
-numpy>=1.24.0
-
-# Machine Learning toolkit — standard tools for preprocessing and metrics
-scikit-learn>=1.3.0
-
-# Text → Numbers (semantic understanding, not just keyword matching)
-# This lets our model understand that "ML" and "Machine Learning" mean the same thing
-sentence-transformers>=2.7.0
-
-# The ranking model — fast and powerful gradient boosting
-lightgbm>=4.0.0
-
-# For reading .yaml files (submission metadata template)
-pyyaml>=6.0.0
-
-# For saving/loading features as Parquet files (fast columnar storage)
-pyarrow>=14.0.0
-
-# Progress bars — shows how far along we are when processing 100K candidates
-tqdm>=4.65.0
+# Hugging Face Space configuration and app requirements
+gradio
+pandas
+numpy
+pyarrow
+sentence-transformers
+scikit-learn
+tqdm
