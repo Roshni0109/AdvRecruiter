@@ -1,3 +1,16 @@
+---
+title: Ai Recruiter
+emoji: 💻
+colorFrom: purple
+colorTo: pink
+sdk: gradio
+sdk_version: 6.19.0
+python_version: '3.13'
+app_file: app.py
+pinned: false
+short_description: 'Recruiter that classifies the candidates according to the J '
+---
+
 # AdvRecruiter 🤖
 
 An AI-powered candidate ranking engine built for the **Redrob Intelligent Candidate Discovery & Ranking Challenge**.
