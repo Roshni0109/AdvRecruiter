@@ -1,8 +1,6 @@
 ---
 title: Ai Recruiter
-emoji: 💻
-colorFrom: purple
-colorTo: pink
+
 sdk: gradio
 sdk_version: 6.19.0
 python_version: '3.13'
