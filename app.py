@@ -80,7 +80,8 @@ def rank_existing_database(custom_jd):
     global pool_embeddings, candidate_pool, embedding_model
     
     if not candidate_pool or pool_embeddings is None:
-        return pd.DataFrame([{"Error": "Candidate database not loaded on Hugging Face Space."}])
+        err_df = pd.DataFrame([{"Error": "Candidate database not loaded on Hugging Face Space."}])
+        return err_df, None
         
     # Embed custom JD
     custom_jd_emb = embedding_model.encode(custom_jd, convert_to_numpy=True)
@@ -89,13 +90,21 @@ def rank_existing_database(custom_jd):
     df = compute_all_features(candidate_pool, pool_embeddings, custom_jd_emb)
     ranked_df = compute_final_score(df)
     
-    return make_results_table(ranked_df)
+    results_df = make_results_table(ranked_df)
+    
+    # Save a temporary CSV for download
+    csv_path = "ranked_database_candidates.csv"
+    submission_df = results_df[["Candidate ID", "Rank", "Score", "Reasoning"]].rename(columns={"Score": "score", "Rank": "rank", "Candidate ID": "candidate_id", "Reasoning": "reasoning"})
+    submission_df.to_csv(csv_path, index=False, encoding="utf-8")
+    
+    return results_df, csv_path
 
 def rank_uploaded_resumes(file_obj, custom_jd):
     global embedding_model
     
     if file_obj is None:
-        return pd.DataFrame([{"Error": "Please upload a candidate JSON/JSONL file."}])
+        err_df = pd.DataFrame([{"Error": "Please upload a candidate JSON/JSONL file."}])
+        return err_df, None
         
     import json
     candidates = []
@@ -116,10 +125,12 @@ def rank_uploaded_resumes(file_obj, custom_jd):
             else:
                 candidates = [extract_candidate_features(raw_list)]
     except Exception as e:
-        return pd.DataFrame([{"Error": f"Error reading file: {str(e)}"}])
+        err_df = pd.DataFrame([{"Error": f"Error reading file: {str(e)}"}])
+        return err_df, None
         
     if not candidates:
-        return pd.DataFrame([{"Error": "No valid candidates found in file."}])
+        err_df = pd.DataFrame([{"Error": "No valid candidates found in file."}])
+        return err_df, None
         
     # Generate text for embedding
     texts = []
@@ -133,7 +144,14 @@ def rank_uploaded_resumes(file_obj, custom_jd):
     df = compute_all_features(candidates, uploaded_embeddings, custom_jd_emb)
     ranked_df = compute_final_score(df)
     
-    return make_results_table(ranked_df)
+    results_df = make_results_table(ranked_df)
+    
+    # Save a temporary CSV for download
+    csv_path = "ranked_uploaded_candidates.csv"
+    submission_df = results_df[["Candidate ID", "Rank", "Score", "Reasoning"]].rename(columns={"Score": "score", "Rank": "rank", "Candidate ID": "candidate_id", "Reasoning": "reasoning"})
+    submission_df.to_csv(csv_path, index=False, encoding="utf-8")
+    
+    return results_df, csv_path
 
 def make_results_table(ranked_df):
     results = []
@@ -171,10 +189,11 @@ with gr.Blocks() as demo:
             with gr.Column(scale=1):
                 jd_input_1 = gr.Textbox(value=JD_TEXT, label="Job Description", lines=8)
                 btn_db = gr.Button("Rank Database Candidates", variant="primary")
+                download_db = gr.File(label="Download Ranked CSV Output")
             with gr.Column(scale=2):
                 results_db = gr.Dataframe(label="Top Ranked Candidates (100k database)")
                 
-        btn_db.click(rank_existing_database, inputs=[jd_input_1], outputs=[results_db])
+        btn_db.click(rank_existing_database, inputs=[jd_input_1], outputs=[results_db, download_db])
         
     with gr.Tab("Mode 2: Upload & Rank New Resumes"):
         gr.Markdown("### Upload a new JSON/JSONL candidate list and score them")
@@ -183,10 +202,11 @@ with gr.Blocks() as demo:
                 file_input = gr.File(label="Upload Candidate JSON/JSONL", file_count="single")
                 jd_input_2 = gr.Textbox(value=JD_TEXT, label="Job Description", lines=5)
                 btn_upload = gr.Button("Score & Rank Resumes", variant="primary")
+                download_upload = gr.File(label="Download Ranked CSV Output")
             with gr.Column(scale=2):
                 results_upload = gr.Dataframe(label="Ranked Results (New Uploads)")
                 
-        btn_upload.click(rank_uploaded_resumes, inputs=[file_input, jd_input_2], outputs=[results_upload])
+        btn_upload.click(rank_uploaded_resumes, inputs=[file_input, jd_input_2], outputs=[results_upload, download_upload])
 
 if __name__ == "__main__":
     demo.launch(theme=gr.themes.Soft())
