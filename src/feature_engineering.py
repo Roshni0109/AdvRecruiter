@@ -125,16 +125,6 @@ Noida or Pune India.
 def load_embedding_model() -> SentenceTransformer:
     """
     Load the sentence embedding model.
-
-    What is a sentence embedding model?
-    → It's an AI model trained to convert any text into a list of numbers
-      (called a vector or embedding). The key property: texts that MEAN the
-      same thing end up with SIMILAR number-lists, even if the words differ.
-
-    Example:
-      "vector database" → [0.12, -0.45, 0.87, ...]  (384 numbers)
-      "ANN index"       → [0.11, -0.44, 0.85, ...]  (384 numbers, very close!)
-      "cooking recipe"  → [0.92, 0.31, -0.22, ...]  (very different!)
     """
     print(f"Loading embedding model: {EMBEDDING_MODEL_NAME}")
     model = SentenceTransformer(EMBEDDING_MODEL_NAME)
@@ -168,15 +158,7 @@ def score_semantic_similarity(
     jd_embedding: np.ndarray
 ) -> float:
     """
-    Compute how semantically similar the candidate's profile is to the JD.
-
-    What is cosine similarity?
-    → It measures the "angle" between two vectors. If the angle is 0° (same
-      direction), similarity = 1.0 (perfect match). If they point in opposite
-      directions, similarity = -1.0. In practice for text, values range 0.0–1.0.
-
-    Think of it like: how much does this candidate's "meaning" overlap with
-    the JD's "meaning"?
+    Compute how semantically similar the candidate's profile is to the JD using cosine similarity.
     """
     # cosine_similarity expects 2D arrays, so we reshape (384,) → (1, 384)
     sim = cosine_similarity(
