@@ -94,8 +94,7 @@ def rank_existing_database(custom_jd):
     
     # Save a temporary CSV for download
     csv_path = "ranked_database_candidates.csv"
-    submission_df = results_df[["Candidate ID", "Rank", "Score", "Reasoning"]].rename(columns={"Score": "score", "Rank": "rank", "Candidate ID": "candidate_id", "Reasoning": "reasoning"})
-    submission_df.to_csv(csv_path, index=False, encoding="utf-8")
+    results_df.to_csv(csv_path, index=False, encoding="utf-8")
     
     return results_df, csv_path
 
@@ -148,33 +147,23 @@ def rank_uploaded_resumes(file_obj, custom_jd):
     
     # Save a temporary CSV for download
     csv_path = "ranked_uploaded_candidates.csv"
-    submission_df = results_df[["Candidate ID", "Rank", "Score", "Reasoning"]].rename(columns={"Score": "score", "Rank": "rank", "Candidate ID": "candidate_id", "Reasoning": "reasoning"})
-    submission_df.to_csv(csv_path, index=False, encoding="utf-8")
+    results_df.to_csv(csv_path, index=False, encoding="utf-8")
     
     return results_df, csv_path
+
+from scripts.rank_candidates import generate_reasoning
 
 def make_results_table(ranked_df):
     results = []
     for _, row in ranked_df.head(100).iterrows():
-        # Generate reasoning
-        parts = []
-        parts.append(f"{row['current_title']} ({row['years_exp']:.0f}y exp)")
-        parts.append(f"Semantic: {row['semantic_similarity']:.2%}")
-        if row['notice_days'] <= 30:
-            parts.append("Immediate/Short notice")
-        if row['career_quality'] >= 0.75:
-            parts.append("Product background")
-            
-        reasoning = "; ".join(parts)
+        # Use the spec reasoning generator function
+        reasoning = generate_reasoning(row)
         
         results.append({
-            "Rank": int(row['rank']),
-            "Candidate ID": row['candidate_id'],
-            "Score": f"{row['final_score']:.4f}",
-            "Title": row['current_title'],
-            "Semantic Sim": f"{row['semantic_similarity']:.4f}",
-            "Notice Period": f"{row['notice_days']} days",
-            "Reasoning": reasoning
+            "candidate_id": row['candidate_id'],
+            "rank": int(row['rank']),
+            "score": f"{row['final_score']:.4f}",
+            "reasoning": reasoning
         })
     return pd.DataFrame(results)
 
