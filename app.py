@@ -172,7 +172,7 @@ with gr.Blocks() as demo:
                 jd_input_1 = gr.Textbox(value=JD_TEXT, label="Job Description", lines=8)
                 btn_db = gr.Button("Rank Database Candidates", variant="primary")
             with gr.Column(scale=2):
-                results_db = gr.Dataframe(label="Top Ranked Candidates (100k database)", max_rows=15)
+                results_db = gr.Dataframe(label="Top Ranked Candidates (100k database)")
                 
         btn_db.click(rank_existing_database, inputs=[jd_input_1], outputs=[results_db])
         
@@ -184,7 +184,7 @@ with gr.Blocks() as demo:
                 jd_input_2 = gr.Textbox(value=JD_TEXT, label="Job Description", lines=5)
                 btn_upload = gr.Button("Score & Rank Resumes", variant="primary")
             with gr.Column(scale=2):
-                results_upload = gr.Dataframe(label="Ranked Results (New Uploads)", max_rows=15)
+                results_upload = gr.Dataframe(label="Ranked Results (New Uploads)")
                 
         btn_upload.click(rank_uploaded_resumes, inputs=[file_input, jd_input_2], outputs=[results_upload])
 
