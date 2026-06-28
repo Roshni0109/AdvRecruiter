@@ -76,21 +76,46 @@ def initialize_app():
 # Run initialization
 initialize_app()
 
-def rank_existing_database(custom_jd):
+def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail):
     global pool_embeddings, candidate_pool, embedding_model
     
     if not candidate_pool or pool_embeddings is None:
         err_df = pd.DataFrame([{"Error": "Candidate database not loaded on Hugging Face Space."}])
         return err_df, None
         
+    # Normalize weights so they sum to 1.0
+    total = w_sem + w_title + w_exp + w_avail
+    if total == 0:
+        total = 1.0
+    w_sem /= total
+    w_title /= total
+    w_exp /= total
+    w_avail /= total
+        
     # Embed custom JD
     custom_jd_emb = embedding_model.encode(custom_jd, convert_to_numpy=True)
     
     # Recompute feature scores
     df = compute_all_features(candidate_pool, pool_embeddings, custom_jd_emb)
-    ranked_df = compute_final_score(df)
     
-    results_df = make_results_table(ranked_df)
+    # Run custom weighted linear combination score logic
+    base_score = (
+        w_sem   * df["semantic_similarity"] +
+        w_title * df["title_relevance"]     +
+        w_exp   * df["experience_fit"]      +
+        w_avail * df["behavioral"]
+    )
+    title_gate = 0.35 + 0.65 * df["title_relevance"]
+    df["final_score"] = base_score * title_gate
+    
+    # Penalize honeypots
+    df.loc[df["is_honeypot"] == True, "final_score"] = 0.0
+    
+    # Sort and rank
+    df = df.sort_values("final_score", ascending=False).reset_index(drop=True)
+    df["rank"] = df.index + 1
+    
+    results_df = make_results_table(df)
     
     # Save a temporary CSV for download
     csv_path = "ranked_database_candidates.csv"
@@ -167,22 +192,43 @@ def make_results_table(ranked_df):
         })
     return pd.DataFrame(results)
 
-# --- Gradio UI Layout ---
+# --- Gradio UI Layout with custom styling ---
+theme = gr.themes.Soft(
+    primary_hue="violet",
+    secondary_hue="indigo",
+    neutral_hue="slate",
+).set(
+    button_primary_background_fill="linear-gradient(90deg, *primary_500, *secondary_500)",
+    button_primary_background_fill_hover="linear-gradient(90deg, *primary_600, *secondary_600)",
+    block_title_text_weight="600",
+)
+
 with gr.Blocks() as demo:
-    gr.Markdown("# 🤖 AdvRecruiter - Candidate Ranking Dashboard")
-    gr.Markdown("Rank candidates against any Job Description using semantic similarity and behavioral scoring.")
+    gr.Markdown("# 🤖 AdvRecruiter - Interactive Candidate Discovery Engine")
+    gr.Markdown("Identify, score, and filter top talent using semantic search and adjustable behavioral signals.")
     
     with gr.Tab("Mode 1: Rank Existing Pool"):
-        gr.Markdown("### Match the existing candidate database against a custom JD")
+        gr.Markdown("### Match candidates with a Job Description & custom scoring weights")
         with gr.Row():
             with gr.Column(scale=1):
-                jd_input_1 = gr.Textbox(value=JD_TEXT, label="Job Description", lines=8)
+                jd_input_1 = gr.Textbox(value=JD_TEXT, label="Job Description (Paste any custom JD here)", lines=7)
+                
+                gr.Markdown("#### 🎚️ Candidate Scoring Weights")
+                w_sem = gr.Slider(0.0, 1.0, value=0.40, step=0.05, label="Semantic Fit (Meaning)")
+                w_title = gr.Slider(0.0, 1.0, value=0.30, step=0.05, label="Job Title Match")
+                w_exp = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Experience (Years)")
+                w_avail = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability & Notice Period")
+                
                 btn_db = gr.Button("Rank Database Candidates", variant="primary")
                 download_db = gr.File(label="Download Ranked CSV Output")
             with gr.Column(scale=2):
                 results_db = gr.Dataframe(label="Top Ranked Candidates (100k database)")
                 
-        btn_db.click(rank_existing_database, inputs=[jd_input_1], outputs=[results_db, download_db])
+        btn_db.click(
+            rank_existing_database, 
+            inputs=[jd_input_1, w_sem, w_title, w_exp, w_avail], 
+            outputs=[results_db, download_db]
+        )
         
     with gr.Tab("Mode 2: Upload & Rank New Resumes"):
         gr.Markdown("### Upload a new JSON/JSONL candidate list and score them")
@@ -198,4 +244,4 @@ with gr.Blocks() as demo:
         btn_upload.click(rank_uploaded_resumes, inputs=[file_input, jd_input_2], outputs=[results_upload, download_upload])
 
 if __name__ == "__main__":
-    demo.launch(theme=gr.themes.Soft())
+    demo.launch(theme=theme)
