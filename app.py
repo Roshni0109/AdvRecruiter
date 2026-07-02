@@ -114,7 +114,15 @@ def initialize_app():
 # Run initialization
 initialize_app()
 
-def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail):
+# Preset Job Descriptions to simplify quick testing
+PRESET_JDS = {
+    "Senior AI Engineer (Default)": JD_TEXT,
+    "Data Scientist": "Looking for a Data Scientist with 4+ years of experience in ML, statistical modeling, and predictive analytics. Proficient in Python, SQL, pandas, and scikit-learn. Experience with PyTorch or TensorFlow is preferred. Location: Noida/Pune.",
+    "Backend Engineer": "We are seeking a Backend Engineer with 5+ years of experience. Must have strong Python (FastAPI/Django) or Go background, PostgreSQL/Redis experience, and familiarity with Docker/AWS. Location: Pune/Noida.",
+    "Product Manager": "Product Manager role for AI Recruitment platform. 4+ years of product management experience. Strong analytical skills, user research experience, and product strategy background are required. Location: Pune/Noida."
+}
+
+def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail, top_n):
     global pool_embeddings, candidate_pool, embedding_model
     
     if not candidate_pool or pool_embeddings is None:
@@ -153,7 +161,7 @@ def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail):
     df = df.sort_values("final_score", ascending=False).reset_index(drop=True)
     df["rank"] = df.index + 1
     
-    results_df = make_results_table(df)
+    results_df = make_results_table(df, int(top_n))
     
     # Save a temporary CSV for download
     csv_path = "ranked_database_candidates.csv"
@@ -161,7 +169,7 @@ def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail):
     
     return results_df, csv_path
 
-def rank_uploaded_resumes(file_obj, custom_jd, jd_file, w_sem, w_title, w_exp, w_avail):
+def rank_uploaded_resumes(file_obj, custom_jd, jd_file, w_sem, w_title, w_exp, w_avail, top_n):
     global embedding_model
     
     if file_obj is None:
@@ -237,7 +245,7 @@ def rank_uploaded_resumes(file_obj, custom_jd, jd_file, w_sem, w_title, w_exp, w
     df = df.sort_values("final_score", ascending=False).reset_index(drop=True)
     df["rank"] = df.index + 1
     
-    results_df = make_results_table(df)
+    results_df = make_results_table(df, int(top_n))
     
     # Save a temporary CSV for download
     csv_path = "ranked_uploaded_candidates.csv"
@@ -247,9 +255,9 @@ def rank_uploaded_resumes(file_obj, custom_jd, jd_file, w_sem, w_title, w_exp, w
 
 from scripts.rank_candidates import generate_reasoning
 
-def make_results_table(ranked_df):
+def make_results_table(ranked_df, top_n=100):
     results = []
-    for _, row in ranked_df.head(100).iterrows():
+    for _, row in ranked_df.head(top_n).iterrows():
         # Use the spec reasoning generator function
         reasoning = generate_reasoning(row)
         
@@ -272,54 +280,114 @@ theme = gr.themes.Soft(
     block_title_text_weight="600",
 )
 
-with gr.Blocks() as demo:
-    gr.Markdown("# 🤖 AdvRecruiter - Interactive Candidate Discovery Engine")
+with gr.Blocks(theme=theme) as demo:
+    gr.Markdown("# 🤖 AI Recruiter: Semantic Resume Ranking")
+    gr.Markdown("Designed for the **Redrob Intelligent Candidate Discovery & Ranking Challenge**. Paste a Job Description to find the best-matched profiles based on career meaning, title match, experience fit, and behavioral signals.")
     
     with gr.Tab("Mode 1: Rank Existing Pool"):
+        gr.Markdown("### Search the preloaded database of candidates using your Job Description.")
         with gr.Row():
             with gr.Column(scale=4):
-                jd_input_1 = gr.Textbox(value=JD_TEXT, label="Job Description", lines=5)
-                with gr.Row():
-                    w_sem_1 = gr.Slider(0.0, 1.0, value=0.40, step=0.05, label="Semantic (Meaning)")
-                    w_title_1 = gr.Slider(0.0, 1.0, value=0.30, step=0.05, label="Title Match")
-                with gr.Row():
-                    w_exp_1 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Experience (Years)")
-                    w_avail_1 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability")
-                with gr.Row():
-                    btn_db = gr.Button("Rank Database Candidates", variant="primary")
-                    download_db = gr.File(label="Download Ranked CSV Output", height=70)
-            with gr.Column(scale=6):
-                results_db = gr.Dataframe(label="Top Ranked Candidates (100k database)")
+                gr.Markdown("### 📥 1. Job Description")
+                preset_dropdown_1 = gr.Dropdown(
+                    choices=list(PRESET_JDS.keys()), 
+                    value="Senior AI Engineer (Default)", 
+                    label="Load a Preset Job Description"
+                )
+                jd_input_1 = gr.Textbox(
+                    value=JD_TEXT, 
+                    label="Job Description Text", 
+                    placeholder="Paste the full job description here...", 
+                    lines=8
+                )
                 
+                gr.Markdown("### ⚙️ 2. Search Settings")
+                top_n_1 = gr.Slider(
+                    minimum=5, 
+                    maximum=50, 
+                    value=20, 
+                    step=1, 
+                    label="Number of Top Candidates to Show"
+                )
+                
+                with gr.Accordion("Fine-Tune Ranking Weights (Advanced)", open=False):
+                    w_sem_1 = gr.Slider(0.0, 1.0, value=0.40, step=0.05, label="Semantic Fit (Meaning)")
+                    w_title_1 = gr.Slider(0.0, 1.0, value=0.30, step=0.05, label="Title Relevance Match")
+                    w_exp_1 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Experience Fit (Years)")
+                    w_avail_1 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability & Notice period")
+                
+                btn_db = gr.Button("Find Top Candidates", variant="primary")
+                download_db = gr.File(label="Download Ranked CSV Output", height=70)
+                
+            with gr.Column(scale=6):
+                gr.Markdown("### 🏆 3. Ranked Results")
+                gr.Markdown("*Note: Higher scores indicate better semantic fit between the job description and candidate profiles.*")
+                results_db = gr.Dataframe(label="Discovered Candidates")
+                
+        # Link callbacks
+        preset_dropdown_1.change(lambda k: PRESET_JDS[k], inputs=[preset_dropdown_1], outputs=[jd_input_1])
         btn_db.click(
             rank_existing_database, 
-            inputs=[jd_input_1, w_sem_1, w_title_1, w_exp_1, w_avail_1], 
+            inputs=[jd_input_1, w_sem_1, w_title_1, w_exp_1, w_avail_1, top_n_1], 
             outputs=[results_db, download_db]
         )
         
     with gr.Tab("Mode 2: Upload & Rank New Resumes"):
+        gr.Markdown("### Upload a custom candidate resume database (JSON/JSONL format) and rank them.")
         with gr.Row():
             with gr.Column(scale=4):
-                file_input = gr.File(label="Upload Candidate JSON/JSONL", file_count="single", height=90)
-                jd_file_input_2 = gr.File(label="Upload Job Description (.txt, .pdf, .docx)", file_count="single", file_types=[".txt", ".pdf", ".docx"], height=90)
-                jd_input_2 = gr.Textbox(value=JD_TEXT, label="Job Description (used if no file uploaded)", lines=4)
-                with gr.Row():
-                    w_sem_2 = gr.Slider(0.0, 1.0, value=0.40, step=0.05, label="Semantic (Meaning)")
-                    w_title_2 = gr.Slider(0.0, 1.0, value=0.30, step=0.05, label="Title Match")
-                with gr.Row():
-                    w_exp_2 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Experience (Years)")
-                    w_avail_2 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability")
-                with gr.Row():
-                    btn_upload = gr.Button("Score & Rank Resumes", variant="primary")
-                    download_upload = gr.File(label="Download Ranked CSV Output", height=70)
-            with gr.Column(scale=6):
-                results_upload = gr.Dataframe(label="Ranked Results (New Uploads)")
+                gr.Markdown("### 📥 1. Upload Candidates & JD")
+                file_input = gr.File(label="Upload Candidate JSON/JSONL Database", file_count="single", height=90)
                 
+                preset_dropdown_2 = gr.Dropdown(
+                    choices=list(PRESET_JDS.keys()), 
+                    value="Senior AI Engineer (Default)", 
+                    label="Load a Preset Job Description"
+                )
+                jd_file_input_2 = gr.File(
+                    label="Upload Job Description File (.txt, .pdf, .docx)", 
+                    file_count="single", 
+                    file_types=[".txt", ".pdf", ".docx"], 
+                    height=90
+                )
+                jd_input_2 = gr.Textbox(
+                    value=JD_TEXT, 
+                    label="Job Description Text (Fallback if no file uploaded)", 
+                    placeholder="Paste the job description or upload a file above...", 
+                    lines=6
+                )
+                
+                gr.Markdown("### ⚙️ 2. Search Settings")
+                top_n_2 = gr.Slider(
+                    minimum=5, 
+                    maximum=50, 
+                    value=20, 
+                    step=1, 
+                    label="Number of Top Candidates to Show"
+                )
+                
+                with gr.Accordion("Fine-Tune Ranking Weights (Advanced)", open=False):
+                    w_sem_2 = gr.Slider(0.0, 1.0, value=0.40, step=0.05, label="Semantic Fit (Meaning)")
+                    w_title_2 = gr.Slider(0.0, 1.0, value=0.30, step=0.05, label="Title Relevance Match")
+                    w_exp_2 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Experience Fit (Years)")
+                    w_avail_2 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability & Notice period")
+                
+                btn_upload = gr.Button("Find Top Candidates", variant="primary")
+                download_upload = gr.File(label="Download Ranked CSV Output", height=70)
+                
+            with gr.Column(scale=6):
+                gr.Markdown("### 🏆 3. Ranked Results")
+                gr.Markdown("*Note: Higher scores indicate better semantic fit between the job description and candidate profiles.*")
+                results_upload = gr.Dataframe(label="Discovered Candidates")
+                
+        # Link callbacks
+        preset_dropdown_2.change(lambda k: PRESET_JDS[k], inputs=[preset_dropdown_2], outputs=[jd_input_2])
         btn_upload.click(
             rank_uploaded_resumes, 
-            inputs=[file_input, jd_input_2, jd_file_input_2, w_sem_2, w_title_2, w_exp_2, w_avail_2], 
+            inputs=[file_input, jd_input_2, jd_file_input_2, w_sem_2, w_title_2, w_exp_2, w_avail_2, top_n_2], 
             outputs=[results_upload, download_upload]
         )
 
 if __name__ == "__main__":
     demo.launch(theme=theme)
+
