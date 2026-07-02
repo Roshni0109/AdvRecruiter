@@ -6,3 +6,5 @@ pyarrow
 sentence-transformers
 scikit-learn
 tqdm
+pypdf
+python-docx

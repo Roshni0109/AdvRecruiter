@@ -24,6 +24,44 @@ candidate_pool = []
 pool_embeddings = None
 original_features_df = None
 
+# --- File extraction helper functions ---
+def extract_text_from_pdf(pdf_path):
+    import pypdf
+    reader = pypdf.PdfReader(pdf_path)
+    text = ""
+    for page in reader.pages:
+        t = page.extract_text()
+        if t:
+            text += t + "\n"
+    return text
+
+def extract_text_from_docx(docx_path):
+    import docx
+    doc = docx.Document(docx_path)
+    text = []
+    for para in doc.paragraphs:
+        text.append(para.text)
+    return "\n".join(text)
+
+def extract_text_from_txt(txt_path):
+    with open(txt_path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
+
+def extract_text_from_file(file_path):
+    if not file_path:
+        return ""
+    ext = os.path.splitext(file_path)[1].lower()
+    try:
+        if ext == ".pdf":
+            return extract_text_from_pdf(file_path)
+        elif ext in [".docx", ".doc"]:
+            return extract_text_from_docx(file_path)
+        else: # assume text file/other
+            return extract_text_from_txt(file_path)
+    except Exception as e:
+        print(f"Error parsing file {file_path}: {e}")
+        return ""
+
 # --- Helper functions ---
 def initialize_app():
     global embedding_model, candidate_pool, pool_embeddings, original_features_df
@@ -123,13 +161,19 @@ def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail):
     
     return results_df, csv_path
 
-def rank_uploaded_resumes(file_obj, custom_jd, w_sem, w_title, w_exp, w_avail):
+def rank_uploaded_resumes(file_obj, custom_jd, jd_file, w_sem, w_title, w_exp, w_avail):
     global embedding_model
     
     if file_obj is None:
         err_df = pd.DataFrame([{"Error": "Please upload a candidate JSON/JSONL file."}])
         return err_df, None
         
+    # Check if a JD file was uploaded, extract text from it
+    if jd_file is not None:
+        extracted_jd = extract_text_from_file(jd_file.name)
+        if extracted_jd.strip():
+            custom_jd = extracted_jd
+            
     import json
     candidates = []
     
@@ -257,7 +301,8 @@ with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column(scale=4):
                 file_input = gr.File(label="Upload Candidate JSON/JSONL", file_count="single", height=90)
-                jd_input_2 = gr.Textbox(value=JD_TEXT, label="Job Description", lines=4)
+                jd_file_input_2 = gr.File(label="Upload Job Description (.txt, .pdf, .docx)", file_count="single", file_types=[".txt", ".pdf", ".docx"], height=90)
+                jd_input_2 = gr.Textbox(value=JD_TEXT, label="Job Description (used if no file uploaded)", lines=4)
                 with gr.Row():
                     w_sem_2 = gr.Slider(0.0, 1.0, value=0.40, step=0.05, label="Semantic (Meaning)")
                     w_title_2 = gr.Slider(0.0, 1.0, value=0.30, step=0.05, label="Title Match")
@@ -272,7 +317,7 @@ with gr.Blocks() as demo:
                 
         btn_upload.click(
             rank_uploaded_resumes, 
-            inputs=[file_input, jd_input_2, w_sem_2, w_title_2, w_exp_2, w_avail_2], 
+            inputs=[file_input, jd_input_2, jd_file_input_2, w_sem_2, w_title_2, w_exp_2, w_avail_2], 
             outputs=[results_upload, download_upload]
         )
 
