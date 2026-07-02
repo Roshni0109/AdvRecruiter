@@ -169,18 +169,21 @@ def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail, top_n):
     
     return results_df, csv_path
 
-def rank_uploaded_resumes(file_obj, custom_jd, jd_file, w_sem, w_title, w_exp, w_avail, top_n):
+def rank_uploaded_resumes(file_obj, jd_file, w_sem, w_title, w_exp, w_avail, top_n):
     global embedding_model
     
     if file_obj is None:
         err_df = pd.DataFrame([{"Error": "Please upload a candidate JSON/JSONL file."}])
         return err_df, None
         
-    # Check if a JD file was uploaded, extract text from it
-    if jd_file is not None:
-        extracted_jd = extract_text_from_file(jd_file.name)
-        if extracted_jd.strip():
-            custom_jd = extracted_jd
+    if jd_file is None:
+        err_df = pd.DataFrame([{"Error": "Please upload a Job Description file (.txt, .pdf, or .docx)."}])
+        return err_df, None
+        
+    custom_jd = extract_text_from_file(jd_file.name)
+    if not custom_jd.strip():
+        err_df = pd.DataFrame([{"Error": "The uploaded Job Description file is empty or cannot be parsed."}])
+        return err_df, None
             
     import json
     candidates = []
@@ -338,22 +341,10 @@ with gr.Blocks(theme=theme) as demo:
             with gr.Column(scale=4):
                 gr.Markdown("### 📥 1. Upload Candidates & JD")
                 file_input = gr.File(label="Upload Candidate JSON/JSONL Database", file_count="single")
-                
-                preset_dropdown_2 = gr.Dropdown(
-                    choices=list(PRESET_JDS.keys()), 
-                    value="Senior AI Engineer (Default)", 
-                    label="Load a Preset Job Description"
-                )
                 jd_file_input_2 = gr.File(
                     label="Upload Job Description File (.txt, .pdf, .docx)", 
                     file_count="single", 
                     file_types=[".txt", ".pdf", ".docx"]
-                )
-                jd_input_2 = gr.Textbox(
-                    value=JD_TEXT, 
-                    label="Job Description Text (Fallback if no file uploaded)", 
-                    placeholder="Paste the job description or upload a file above...", 
-                    lines=6
                 )
                 
                 gr.Markdown("### ⚙️ 2. Search Settings")
@@ -380,10 +371,9 @@ with gr.Blocks(theme=theme) as demo:
                 results_upload = gr.Dataframe(label="Discovered Candidates")
                 
         # Link callbacks
-        preset_dropdown_2.change(lambda k: PRESET_JDS[k], inputs=[preset_dropdown_2], outputs=[jd_input_2])
         btn_upload.click(
             rank_uploaded_resumes, 
-            inputs=[file_input, jd_input_2, jd_file_input_2, w_sem_2, w_title_2, w_exp_2, w_avail_2, top_n_2], 
+            inputs=[file_input, jd_file_input_2, w_sem_2, w_title_2, w_exp_2, w_avail_2, top_n_2], 
             outputs=[results_upload, download_upload]
         )
 
