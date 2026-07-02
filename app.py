@@ -163,11 +163,14 @@ def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail, top_n):
     
     results_df = make_results_table(df, int(top_n))
     
-    # Save a temporary CSV for download
+    # Save temporary CSV and Excel files for download
     csv_path = "ranked_database_candidates.csv"
     results_df.to_csv(csv_path, index=False, encoding="utf-8")
     
-    return results_df, csv_path
+    xlsx_path = "ranked_database_candidates.xlsx"
+    results_df.to_excel(xlsx_path, index=False)
+    
+    return results_df, csv_path, xlsx_path
 
 def rank_uploaded_resumes(file_obj, jd_file, w_sem, w_title, w_exp, w_avail, top_n):
     global embedding_model
@@ -250,11 +253,14 @@ def rank_uploaded_resumes(file_obj, jd_file, w_sem, w_title, w_exp, w_avail, top
     
     results_df = make_results_table(df, int(top_n))
     
-    # Save a temporary CSV for download
+    # Save temporary CSV and Excel files for download
     csv_path = "ranked_uploaded_candidates.csv"
     results_df.to_csv(csv_path, index=False, encoding="utf-8")
     
-    return results_df, csv_path
+    xlsx_path = "ranked_uploaded_candidates.xlsx"
+    results_df.to_excel(xlsx_path, index=False)
+    
+    return results_df, csv_path, xlsx_path
 
 from scripts.rank_candidates import generate_reasoning
 
@@ -320,7 +326,9 @@ with gr.Blocks(theme=theme) as demo:
                     w_avail_1 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability & Notice period")
                 
                 btn_db = gr.Button("Find Top Candidates", variant="primary")
-                download_db = gr.File(label="Download Ranked CSV Output")
+                with gr.Row():
+                    download_db = gr.File(label="Download CSV Output")
+                    download_db_xlsx = gr.File(label="Download Excel (XLSX) Output")
                 
             with gr.Column(scale=6):
                 gr.Markdown("### 🏆 3. Ranked Results")
@@ -332,7 +340,7 @@ with gr.Blocks(theme=theme) as demo:
         btn_db.click(
             rank_existing_database, 
             inputs=[jd_input_1, w_sem_1, w_title_1, w_exp_1, w_avail_1, top_n_1], 
-            outputs=[results_db, download_db]
+            outputs=[results_db, download_db, download_db_xlsx]
         )
         
     with gr.Tab("Mode 2: Upload & Rank New Resumes"):
@@ -363,7 +371,9 @@ with gr.Blocks(theme=theme) as demo:
                     w_avail_2 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability & Notice period")
                 
                 btn_upload = gr.Button("Find Top Candidates", variant="primary")
-                download_upload = gr.File(label="Download Ranked CSV Output")
+                with gr.Row():
+                    download_upload = gr.File(label="Download CSV Output")
+                    download_upload_xlsx = gr.File(label="Download Excel (XLSX) Output")
                 
             with gr.Column(scale=6):
                 gr.Markdown("### 🏆 3. Ranked Results")
@@ -374,7 +384,7 @@ with gr.Blocks(theme=theme) as demo:
         btn_upload.click(
             rank_uploaded_resumes, 
             inputs=[file_input, jd_file_input_2, w_sem_2, w_title_2, w_exp_2, w_avail_2, top_n_2], 
-            outputs=[results_upload, download_upload]
+            outputs=[results_upload, download_upload, download_upload_xlsx]
         )
 
 if __name__ == "__main__":
