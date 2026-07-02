@@ -282,7 +282,7 @@ theme = gr.themes.Soft(
 
 with gr.Blocks(theme=theme) as demo:
     gr.Markdown("# 🤖 AI Recruiter: Semantic Resume Ranking")
-    gr.Markdown("Designed for the **Redrob Intelligent Candidate Discovery & Ranking Challenge**. Paste a Job Description to find the best-matched profiles based on career meaning, title match, experience fit, and behavioral signals.")
+   
     
     with gr.Tab("Mode 1: Rank Existing Pool"):
         gr.Markdown("### Search the preloaded database of candidates using your Job Description.")
@@ -317,7 +317,7 @@ with gr.Blocks(theme=theme) as demo:
                     w_avail_1 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability & Notice period")
                 
                 btn_db = gr.Button("Find Top Candidates", variant="primary")
-                download_db = gr.File(label="Download Ranked CSV Output", height=70)
+                download_db = gr.File(label="Download Ranked CSV Output")
                 
             with gr.Column(scale=6):
                 gr.Markdown("### 🏆 3. Ranked Results")
@@ -337,7 +337,7 @@ with gr.Blocks(theme=theme) as demo:
         with gr.Row():
             with gr.Column(scale=4):
                 gr.Markdown("### 📥 1. Upload Candidates & JD")
-                file_input = gr.File(label="Upload Candidate JSON/JSONL Database", file_count="single", height=90)
+                file_input = gr.File(label="Upload Candidate JSON/JSONL Database", file_count="single")
                 
                 preset_dropdown_2 = gr.Dropdown(
                     choices=list(PRESET_JDS.keys()), 
@@ -347,8 +347,7 @@ with gr.Blocks(theme=theme) as demo:
                 jd_file_input_2 = gr.File(
                     label="Upload Job Description File (.txt, .pdf, .docx)", 
                     file_count="single", 
-                    file_types=[".txt", ".pdf", ".docx"], 
-                    height=90
+                    file_types=[".txt", ".pdf", ".docx"]
                 )
                 jd_input_2 = gr.Textbox(
                     value=JD_TEXT, 
@@ -373,7 +372,7 @@ with gr.Blocks(theme=theme) as demo:
                     w_avail_2 = gr.Slider(0.0, 1.0, value=0.15, step=0.05, label="Availability & Notice period")
                 
                 btn_upload = gr.Button("Find Top Candidates", variant="primary")
-                download_upload = gr.File(label="Download Ranked CSV Output", height=70)
+                download_upload = gr.File(label="Download Ranked CSV Output")
                 
             with gr.Column(scale=6):
                 gr.Markdown("### 🏆 3. Ranked Results")
