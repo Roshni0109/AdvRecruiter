@@ -44,40 +44,67 @@ NON_AI_TITLES = {
 def load_candidates(filepath: str, limit: int = None) -> list[dict]:
     """
     Read candidates from a JSON/JSONL file/array and return a list of cleaned dicts.
-    Supports standard JSON list formats or JSONL line-by-line format.
+    Supports single JSON objects, JSON lists, index-oriented dictionaries, and stream JSONL.
     """
     candidates = []
     print(f"Loading candidates from: {filepath}")
 
     try:
-        # Check if it's a JSON array by reading the first character
+        # First, try to read the entire file and parse as a single JSON structure
         with open(filepath, "r", encoding="utf-8") as f:
-            first_char = f.read(1).strip()
+            content = f.read().strip()
             
-        if first_char == "[":
-            # Load as a full JSON array
-            with open(filepath, "r", encoding="utf-8") as f:
-                raw_list = json.load(f)
-            print(f"  Read {len(raw_list)} candidates as JSON array.")
-            for i, raw in enumerate(raw_list):
+        if content:
+            try:
+                raw_data = json.loads(content)
+                if isinstance(raw_data, list):
+                    # 1. JSON Array of candidates
+                    print(f"  Read {len(raw_data)} candidates as JSON array.")
+                    for i, raw in enumerate(raw_data):
+                        if limit and i >= limit:
+                            break
+                        candidates.append(extract_candidate_features(raw))
+                elif isinstance(raw_data, dict):
+                    # 2. Dictionary structure
+                    if "candidates" in raw_data and isinstance(raw_data["candidates"], list):
+                        # Wrapper dict containing candidates list
+                        cand_list = raw_data["candidates"]
+                        print(f"  Read {len(cand_list)} candidates from nested list.")
+                        for i, raw in enumerate(cand_list):
+                            if limit and i >= limit:
+                                break
+                            candidates.append(extract_candidate_features(raw))
+                    elif any(isinstance(v, dict) and any(k in v for k in ["candidate_id", "id", "RegistrationID"]) for v in raw_data.values()):
+                        # Index-oriented dictionary (e.g. {"0": {...}, "1": {...}})
+                        cand_dict_values = list(raw_data.values())
+                        print(f"  Read {len(cand_dict_values)} candidates from index dictionary.")
+                        for i, raw in enumerate(cand_dict_values):
+                            if limit and i >= limit:
+                                break
+                            candidates.append(extract_candidate_features(raw))
+                    else:
+                        # Single candidate JSON object
+                        print("  Read single candidate JSON object.")
+                        candidates.append(extract_candidate_features(raw_data))
+                return candidates
+            except json.JSONDecodeError:
+                # If parsing the whole file failed, fall back to line-by-line JSONL streaming
+                pass
+
+        # 3. Stream JSONL line-by-line fallback
+        with open(filepath, "r", encoding="utf-8") as f:
+            for i, line in enumerate(tqdm(f, desc="Reading candidates")):
                 if limit and i >= limit:
                     break
-                candidates.append(extract_candidate_features(raw))
-        else:
-            # Load as JSONL
-            with open(filepath, "r", encoding="utf-8") as f:
-                for i, line in enumerate(tqdm(f, desc="Reading candidates")):
-                    if limit and i >= limit:
-                        break
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        raw = json.loads(line)
-                        candidates.append(extract_candidate_features(raw))
-                    except json.JSONDecodeError:
-                        print(f"  Warning: Skipping malformed JSON at line {i+1}")
-                        continue
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw = json.loads(line)
+                    candidates.append(extract_candidate_features(raw))
+                except json.JSONDecodeError:
+                    print(f"  Warning: Skipping malformed JSON at line {i+1}")
+                    continue
     except Exception as e:
         print(f"Error loading candidates from {filepath}: {e}")
 
