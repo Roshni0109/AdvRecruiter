@@ -9,12 +9,12 @@ TODAY = datetime.today()
 
 # Common key variations for candidate mapping
 CANDIDATE_ID_KEYS = ["candidate_id", "id", "user_id", "RegistrationID", "BeneficaryProfileId", "candidateId"]
-YEARS_EXP_KEYS = ["years_of_experience", "years_exp", "experience", "total_experience", "exp", "yearsExp", "Ex_id"]
+YEARS_EXP_KEYS = ["years_of_experience", "years_exp", "experience", "total_experience", "exp", "yearsExp", "Ex_id", "experience_years", "years"]
 TITLE_KEYS = ["current_title", "title", "job_title", "role", "designation"]
 COMPANY_KEYS = ["current_company", "company", "currentCompany", "employer"]
-LOCATION_KEYS = ["location", "city", "address", "PA_Address", "TA_Address", "PA_District", "TA_District", "PA_Village", "TA_Village"]
-COUNTRY_KEYS = ["country", "nationality", "state", "PA_State", "TA_State"]
-HEADLINE_KEYS = ["headline", "summary", "objective", "bio", "about"]
+LOCATION_KEYS = ["location", "city", "address", "PA_Address", "TA_Address", "PA_District", "TA_District", "PA_Village", "TA_Village", "domicile_district"]
+COUNTRY_KEYS = ["country", "nationality"]
+HEADLINE_KEYS = ["headline", "summary", "objective", "bio", "about", "area_of_interest", "area_of_intrest"]
 
 def get_mapped_value(data: Dict[str, Any], keys: List[str], default: Any = None) -> Any:
     """Helper to look up values in nested or flat structures by checking variations of keys."""
@@ -53,9 +53,26 @@ def normalize_candidate(raw: Dict[str, Any]) -> CanonicalCandidate:
         years_exp = 0.0
 
     current_title = get_mapped_value(raw, TITLE_KEYS, "")
+    if not current_title:
+        current_title = get_mapped_value(raw, ["area_of_interest", "area_of_intrest"], "")
     current_company = get_mapped_value(raw, COMPANY_KEYS, "")
-    location = get_mapped_value(raw, LOCATION_KEYS, "")
-    country = get_mapped_value(raw, COUNTRY_KEYS, "")
+    
+    # Handle dictionary locations or fallback to domicile district/state
+    raw_location = get_mapped_value(raw, LOCATION_KEYS, None)
+    if isinstance(raw_location, dict):
+        parts = [raw_location.get(k) for k in ["village_or_ward", "tehsil", "district", "state", "pincode"] if raw_location.get(k)]
+        location = ", ".join(str(p) for p in parts)
+    elif isinstance(raw_location, str):
+        location = raw_location
+    else:
+        domicile_district = get_mapped_value(raw, ["domicile_district", "district"])
+        domicile_state = get_mapped_value(raw, ["domicile_state", "state"])
+        if domicile_district or domicile_state:
+            location = ", ".join(str(x) for x in [domicile_district, domicile_state] if x)
+        else:
+            location = ""
+
+    country = get_mapped_value(raw, COUNTRY_KEYS, "India")
     
     headline = get_mapped_value(raw, ["headline"], "")
     summary = get_mapped_value(raw, ["summary", "about", "bio"], "")
@@ -167,7 +184,8 @@ def normalize_candidate(raw: Dict[str, Any]) -> CanonicalCandidate:
         career_texts.append(f"{t} at {c}: {desc}")
     career_text = " ".join(career_texts)
     
-    full_text = f"{headline} {summary} {career_text}".strip()
+    resume_text = get_mapped_value(raw, ["resume_text", "resume"], "")
+    full_text = f"{headline} {summary} {career_text} {resume_text}".strip()
 
     return CanonicalCandidate(
         candidate_id=candidate_id,
@@ -230,15 +248,24 @@ def normalize_job_description(jd_text: str) -> CanonicalJobDescription:
     
     # 1. Experience extraction (e.g. 5-9 years, 4+ years)
     min_exp, max_exp = 0.0, 99.0
-    exp_range_match = re.search(r"(\d+)\s*[-to]+\s*(\d+)\s*years?", text_lower)
+    # Pattern 1: experience word before range (e.g. "experience required: 0-2 years")
+    exp_range_match = re.search(r"(?:experience|exp)[^.0-9\n]*(\d+)\s*[-to]+\s*(\d+)\s*years?", text_lower)
+    if not exp_range_match:
+        # Pattern 2: experience word after range (e.g. "5-9 years experience")
+        exp_range_match = re.search(r"(\d+)\s*[-to]+\s*(\d+)\s*years?[^.\n]*(?:experience|exp)", text_lower)
+        
     if exp_range_match:
         min_exp = float(exp_range_match.group(1))
         max_exp = float(exp_range_match.group(2))
     else:
-        exp_plus_match = re.search(r"(\d+)\+\s*years?", text_lower)
+        # Pattern 3: experience word before plus (e.g. "experience: 4+ years")
+        exp_plus_match = re.search(r"(?:experience|exp)[^.0-9\n]*(\d+)\+\s*years?", text_lower)
+        if not exp_plus_match:
+            # Pattern 4: experience word after plus (e.g. "4+ years experience")
+            exp_plus_match = re.search(r"(\d+)\+\s*years?[^.\n]*(?:experience|exp)", text_lower)
         if exp_plus_match:
             min_exp = float(exp_plus_match.group(1))
-            max_exp = min_exp + 5.0  # safe assumption for range upper limit
+            max_exp = min_exp + 5.0
     
     # 2. Job Title
     title = "Senior AI Engineer"
@@ -252,33 +279,58 @@ def normalize_job_description(jd_text: str) -> CanonicalJobDescription:
             title = first_line[0][:60].strip()
 
     # 3. Core skills list extraction
+    extracted_skills = []
+    # Try to find a "Required Skills" or "Skills:" section and extract bullet points
+    skills_section_match = re.search(r"(?:required\s+skills|skills|skills\s+required)[^.\n]*\n((?:\s*[\n•\-\*\t\w\s()+\d.]+)+)", text_lower)
+    if skills_section_match:
+        skills_block = skills_section_match.group(1)
+        for line in skills_block.split("\n"):
+            # Clean up bullet points
+            cleaned = re.sub(r"^\s*[•\-\*\d\.\t]+\s*", "", line).strip()
+            if cleaned and len(cleaned) < 50 and not cleaned.startswith("preferred") and not cleaned.startswith("job"):
+                extracted_skills.append(cleaned)
+                
+    # Also check preferred skills
+    pref_skills_section_match = re.search(r"(?:preferred\s+skills|preferred\s+skills\s+required)[^.\n]*\n((?:\s*[\n•\-\*\t\w\s()+\d.]+)+)", text_lower)
+    if pref_skills_section_match:
+        skills_block = pref_skills_section_match.group(1)
+        for line in skills_block.split("\n"):
+            cleaned = re.sub(r"^\s*[•\-\*\d\.\t]+\s*", "", line).strip()
+            if cleaned and len(cleaned) < 50 and not cleaned.startswith("job"):
+                extracted_skills.append(cleaned)
+
+    # Supplement/Fallback by matching common keywords
     common_skills = {
         "embeddings", "sentence-transformers", "vector database", "pinecone", "weaviate", 
         "qdrant", "milvus", "faiss", "elasticsearch", "opensearch", "retrieval", "ranking", 
         "nlp", "information retrieval", "bge", "e5", "ndcg", "mrr", "map", "a/b testing", 
         "fine-tuning", "lora", "qlora", "peft", "llm", "rag", "hybrid search", "reranking", 
         "xgboost", "lightgbm", "python", "pytorch", "transformers", "fastapi", "django", 
-        "sql", "postgres", "aws", "docker", "kubernetes", "go"
+        "sql", "postgres", "aws", "docker", "kubernetes", "go", "tally", "excel", "ms excel",
+        "data entry", "typing"
     }
-    extracted_skills = []
     for skill in common_skills:
-        # use word boundary regex
         if re.search(rf"\b{re.escape(skill)}\b", text_lower):
-            extracted_skills.append(skill)
-            
+            if skill not in extracted_skills:
+                extracted_skills.append(skill)
+                
     if not extracted_skills:
-        extracted_skills = list(common_skills) # fallback
+        extracted_skills = list(common_skills)
 
     # 4. Preferred locations
-    common_cities = {"pune", "noida", "hyderabad", "mumbai", "delhi", "bangalore", "bengaluru", "gurugram", "gurgaon"}
-    extracted_cities = []
-    for city in common_cities:
-        if re.search(rf"\b{re.escape(city)}\b", text_lower):
-            extracted_cities.append(city)
-            
-    if not extracted_cities:
-        # Default cities from hackathon
-        extracted_cities = ["pune", "noida", "bangalore", "bengaluru", "delhi ncr"]
+    loc_match = re.search(r"(?:location|located in):\s*([^\n,]+)", text_lower)
+    if loc_match:
+        extracted_cities = [c.strip() for c in re.split(r'[,;/]', loc_match.group(1)) if c.strip()]
+    else:
+        common_cities = {"pune", "noida", "hyderabad", "mumbai", "delhi", "bangalore", "bengaluru", "gurugram", "gurgaon", "bhopal", "indore"}
+        extracted_cities = []
+        for city in common_cities:
+            if re.search(rf"\b{re.escape(city)}\b", text_lower):
+                extracted_cities.append(city)
+                
+        if not extracted_cities:
+            # Default cities from hackathon
+            extracted_cities = ["pune", "noida", "bangalore", "bengaluru", "delhi ncr"]
 
     # 5. Weights allocation based on JD contents
     weights = {
