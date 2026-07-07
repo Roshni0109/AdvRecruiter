@@ -27,73 +27,60 @@ import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-def generate_reasoning(row: pd.Series) -> str:
+def generate_reasoning(row: pd.Series, jd_schema = None) -> str:
     """
-    Build a short, human-readable explanation for why this candidate ranked here.
-
-    The reasoning is shown to human reviewers in Stage 4 of the hackathon.
-    It should be specific, not generic — real numbers and signals matter.
+    Build a short, human-readable explanation for why this candidate is eligible.
+    Specific to the candidate's actual qualifications matching the JD parameters.
     """
-    parts = []
-
-    # --- Title and experience ---
-    title = row.get("current_title", "Unknown title")
-    years = row.get("years_exp", 0)
-    parts.append(f"{title} with {years:.0f}y exp")
-
-    # --- Semantic fit ---
-    sem = row.get("semantic_similarity", 0)
-    if sem >= 0.75:
-        parts.append("strong semantic match to JD")
-    elif sem >= 0.55:
-        parts.append("good semantic alignment")
+    # Resolve experience boundaries
+    min_exp = jd_schema.min_years_exp if jd_schema else 5.0
+    max_exp = jd_schema.max_years_exp if jd_schema else 9.0
+    
+    title = row.get("current_title", "Candidate")
+    years = row.get("years_exp", 0.0)
+    
+    eligibility_parts = []
+    
+    # 1. Experience Match
+    if min_exp <= years <= max_exp:
+        eligibility_parts.append(f"experience ({years:.1f}y) fits target range ({min_exp:.0f}-{max_exp:.0f}y)")
+    elif years >= min_exp:
+        eligibility_parts.append(f"highly experienced ({years:.1f}y, exceeds min {min_exp:.0f}y)")
     else:
-        parts.append("partial JD alignment")
+        eligibility_parts.append(f"has {years:.1f}y experience")
+        
+    # 2. Location Match
+    location = str(row.get("city", ""))
+    is_preferred = False
+    if jd_schema and jd_schema.preferred_cities:
+        is_preferred = any(city in location.lower() for city in jd_schema.preferred_cities)
+    else:
+        is_preferred = any(city in location.lower() for city in ["pune", "noida", "bangalore"])
+        
+    if is_preferred:
+        eligibility_parts.append(f"based in preferred location ({location})")
+    elif location:
+        eligibility_parts.append(f"located in {location}")
 
-    # --- JD skill overlap ---
+    # 3. Skills Match
     overlap = row.get("jd_skill_overlap", 0)
-    if overlap >= 5:
-        parts.append(f"{overlap} JD skills matched")
-    elif overlap >= 2:
-        parts.append(f"{overlap} JD skills")
+    if overlap > 0:
+        eligibility_parts.append(f"matches {overlap} core skills")
 
-    # --- Career quality signals ---
-    career_q = row.get("career_quality", 0)
-    if career_q >= 0.75:
-        parts.append("product-company background")
-    elif career_q < 0.4:
-        parts.append("mostly services background")
+    # 4. Semantic Similarity
+    sem = row.get("semantic_similarity", 0.0)
+    if sem >= 0.70:
+        eligibility_parts.append(f"excellent semantic profile match ({sem*100:.0f}%)")
+    elif sem >= 0.50:
+        eligibility_parts.append(f"good profile relevance ({sem*100:.0f}%)")
 
-    # --- Behavioral engagement ---
-    response_rate = row.get("response_rate", 0)
-    last_active = row.get("last_active_days", 9999)
-    if last_active <= 14 and response_rate >= 0.6:
-        parts.append("active & responsive")
-    elif last_active > 90:
-        parts.append("inactive 90+ days")
-    elif response_rate < 0.3:
-        parts.append("low response rate")
-
-    # --- Notice period ---
+    # 5. Notice Period / Availability
     notice = row.get("notice_days", 90)
     if notice <= 30:
-        parts.append(f"{notice}d notice")
-    elif notice > 90:
-        parts.append(f"long notice ({notice}d)")
+        eligibility_parts.append(f"short notice period ({notice}d)")
 
-    # --- GitHub activity ---
-    github = row.get("github_score", -1)
-    if github > 60:
-        parts.append(f"strong GitHub (score {github:.0f})")
-    elif github == -1:
-        parts.append("no GitHub linked")
-
-    # --- Location ---
-    location = str(row.get("city", ""))
-    if location:
-        parts.append(location)
-
-    return "; ".join(parts)
+    # Combine into a structured, highly readable string
+    return f"Eligible: {title} | " + "; ".join(eligibility_parts)
 
 
 def main():

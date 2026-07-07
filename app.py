@@ -123,7 +123,7 @@ def rank_existing_database(custom_jd, w_sem, w_title, w_exp, w_avail, top_n):
     # Run scoring logic
     df = compute_final_score(df, jd_schema)
     
-    results_df = make_results_table(df, int(top_n))
+    results_df = make_results_table(df, int(top_n), jd_schema)
     
     # Save files for download
     csv_path = "ranked_database_candidates.csv"
@@ -189,7 +189,7 @@ def rank_uploaded_resumes(file_obj, jd_file, w_sem, w_title, w_exp, w_avail, top
     # Run scoring logic
     df = compute_final_score(df, jd_schema)
     
-    results_df = make_results_table(df, int(top_n))
+    results_df = make_results_table(df, int(top_n), jd_schema)
     
     # Save files for download
     csv_path = "ranked_uploaded_candidates.csv"
@@ -200,10 +200,10 @@ def rank_uploaded_resumes(file_obj, jd_file, w_sem, w_title, w_exp, w_avail, top
     
     return results_df, csv_path, xlsx_path
 
-def make_results_table(ranked_df, top_n=100):
+def make_results_table(ranked_df, top_n=100, jd_schema=None):
     results = []
     for _, row in ranked_df.head(top_n).iterrows():
-        reasoning = generate_reasoning(row)
+        reasoning = generate_reasoning(row, jd_schema)
         
         results.append({
             "candidate_id": row['candidate_id'],
