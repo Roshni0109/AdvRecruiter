@@ -302,3 +302,42 @@ def normalize_job_description(jd_text: str) -> CanonicalJobDescription:
         weights=weights,
         raw_text=jd_text
     )
+
+def extract_text_from_pdf(pdf_path):
+    import pypdf
+    reader = pypdf.PdfReader(pdf_path)
+    text = ""
+    for page in reader.pages:
+        t = page.extract_text()
+        if t:
+            text += t + "\n"
+    return text
+
+def extract_text_from_docx(docx_path):
+    import docx
+    doc = docx.Document(docx_path)
+    text = []
+    for para in doc.paragraphs:
+        text.append(para.text)
+    return "\n".join(text)
+
+def extract_text_from_txt(txt_path):
+    with open(txt_path, "r", encoding="utf-8", errors="ignore") as f:
+        return f.read()
+
+def read_jd_file(file_path):
+    import os
+    if not file_path or not os.path.exists(file_path):
+        return None
+    ext = os.path.splitext(file_path)[1].lower()
+    try:
+        if ext == ".pdf":
+            return extract_text_from_pdf(file_path)
+        elif ext in [".docx", ".doc"]:
+            return extract_text_from_docx(file_path)
+        else:
+            return extract_text_from_txt(file_path)
+    except Exception as e:
+        print(f"Error parsing JD file {file_path}: {e}")
+        return None
+

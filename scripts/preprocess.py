@@ -21,7 +21,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.data_loader import load_candidates
-from src.normalization import normalize_job_description
+from src.normalization import normalize_job_description, read_jd_file
 from src.feature_engineering import (
     load_embedding_model,
     embed_job_description,
@@ -30,44 +30,6 @@ from src.feature_engineering import (
     JD_TEXT,
 )
 from src.ranker import compute_final_score
-
-
-def extract_text_from_pdf(pdf_path):
-    import pypdf
-    reader = pypdf.PdfReader(pdf_path)
-    text = ""
-    for page in reader.pages:
-        t = page.extract_text()
-        if t:
-            text += t + "\n"
-    return text
-
-def extract_text_from_docx(docx_path):
-    import docx
-    doc = docx.Document(docx_path)
-    text = []
-    for para in doc.paragraphs:
-        text.append(para.text)
-    return "\n".join(text)
-
-def extract_text_from_txt(txt_path):
-    with open(txt_path, "r", encoding="utf-8", errors="ignore") as f:
-        return f.read()
-
-def read_jd_file(file_path):
-    if not file_path or not os.path.exists(file_path):
-        return None
-    ext = os.path.splitext(file_path)[1].lower()
-    try:
-        if ext == ".pdf":
-            return extract_text_from_pdf(file_path)
-        elif ext in [".docx", ".doc"]:
-            return extract_text_from_docx(file_path)
-        else:
-            return extract_text_from_txt(file_path)
-    except Exception as e:
-        print(f"Error parsing JD file {file_path}: {e}")
-        return None
 
 
 def main():
