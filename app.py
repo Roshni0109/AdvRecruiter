@@ -69,7 +69,8 @@ def initialize_app():
             pool_embeddings = pool_embeddings[:len(candidate_pool)]
     elif len(candidate_pool) > 0:
         print("embeddings.mmap not found. Generating embeddings on the fly...")
-        texts = [cand.get("career_text", "") for cand in candidate_pool]
+        texts = [cand.get("full_text", "") for cand in candidate_pool]
+        # Encode inputs (fast for 10k candidates on CPU, ~2 mins)
         pool_embeddings = embedding_model.encode(texts, show_progress_bar=True, convert_to_numpy=True)
         print("Embeddings generated successfully.")
 
@@ -177,7 +178,7 @@ def rank_uploaded_resumes(file_obj, jd_file, w_sem, w_title, w_exp, w_avail, top
     }
 
     # Generate text for embedding
-    texts = [cand.get("career_text", "") for cand in candidates]
+    texts = [cand.get("full_text", "") for cand in candidates]
         
     # Embed uploaded candidates
     uploaded_embeddings = embedding_model.encode(texts, convert_to_numpy=True)
