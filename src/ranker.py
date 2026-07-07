@@ -2,41 +2,41 @@
 # ─────────────────────────────────────────────────────────────────────
 # PURPOSE: Score and rank candidates using the engineered features
 #
-# After feature_engineering.py turns candidates into numbers,
-# this file takes those numbers and produces a final score (0-1)
-# for each candidate — telling us "how good a fit are they?"
+# Takes precomputed features and combines them using weights from the
+# Job Description schema, applying rules and fallback filters.
 # ─────────────────────────────────────────────────────────────────────
 
 import pandas as pd
 from src.feature_engineering import WEIGHTS
+from src.schemas import CanonicalJobDescription
 
-def compute_final_score(df: pd.DataFrame) -> pd.DataFrame:
+def compute_final_score(df: pd.DataFrame, jd_schema: CanonicalJobDescription = None) -> pd.DataFrame:
     """
-    Combine all 7 feature scores into one final ranking score using WEIGHTS.
-
-    This is a weighted linear combination:
-        final_score = w1*s1 + w2*s2 + ... + w7*s7
-
-    Why weighted linear combination?
-    → Simple, fast, interpretable. We know exactly why a candidate got
-      a high or low score — we can point to each component.
-
-    After computing the score, we:
-    1. Apply a honeypot penalty (score → 0 for honeypots)
-    2. Sort by final_score descending
-    3. Assign ranks 1–N
+    Combine all 7 feature scores into one final ranking score using weights.
+    Weights are pulled dynamically from jd_schema, or fall back to defaults.
     """
     print("Computing final scores...")
 
-    # ── STEP 1: Compute base weighted score from all 7 features ──
+    # Resolve weights dynamically
+    active_weights = WEIGHTS
+    if jd_schema and jd_schema.weights:
+        # Verify weights sum close to 1.0 or normalize them
+        w = jd_schema.weights
+        total_w = sum(w.values())
+        if total_w > 0:
+            active_weights = {k: v / total_w for k, v in w.items()}
+        else:
+            active_weights = w
+
+    # ── STEP 1: Compute base weighted score ──
     base_score = (
-        WEIGHTS["semantic_similarity"] * df["semantic_similarity"] +
-        WEIGHTS["title_relevance"]     * df["title_relevance"]     +
-        WEIGHTS["behavioral"]          * df["behavioral"]           +
-        WEIGHTS["experience_fit"]      * df["experience_fit"]       +
-        WEIGHTS["career_quality"]      * df["career_quality"]       +
-        WEIGHTS["skill_depth"]         * df["skill_depth"]          +
-        WEIGHTS["location"]            * df["location_score"]
+        active_weights.get("semantic_similarity", 0.35) * df["semantic_similarity"] +
+        active_weights.get("title_relevance", 0.20)     * df["title_relevance"]     +
+        active_weights.get("behavioral", 0.15)          * df["behavioral"]          +
+        active_weights.get("experience_fit", 0.10)      * df["experience_fit"]      +
+        active_weights.get("career_quality", 0.10)      * df["career_quality"]      +
+        active_weights.get("skill_depth", 0.05)         * df["skill_depth"]         +
+        active_weights.get("location", 0.05)            * df["location_score"]
     )
 
     # ── STEP 2: Apply title gate as a MULTIPLIER ──
@@ -44,8 +44,6 @@ def compute_final_score(df: pd.DataFrame) -> pd.DataFrame:
     df["final_score"] = base_score * title_gate
 
     # ── HONEYPOT PENALTY ──
-    # Honeypots must never appear in the top 100.
-    # We set their score to 0.0 so they sink to the bottom.
     honeypot_count = df["is_honeypot"].sum()
     if honeypot_count > 0:
         print(f"  Detected {honeypot_count} honeypot candidates — penalizing scores.")
@@ -53,11 +51,7 @@ def compute_final_score(df: pd.DataFrame) -> pd.DataFrame:
 
     # ── SORT AND RANK ──
     df = df.sort_values("final_score", ascending=False).reset_index(drop=True)
-    df["rank"] = df.index + 1   # rank starts at 1
+    df["rank"] = df.index + 1
 
     print(f"Scoring complete. Top score: {df['final_score'].iloc[0]:.4f}")
-
-    bottom_rank = min(99, len(df) - 1)
-    print(f"Bottom score (rank {bottom_rank + 1}): {df['final_score'].iloc[bottom_rank]:.4f}")
     return df
-
