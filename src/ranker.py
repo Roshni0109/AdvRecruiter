@@ -12,7 +12,7 @@ from src.schemas import CanonicalJobDescription
 
 def compute_final_score(df: pd.DataFrame, jd_schema: CanonicalJobDescription = None) -> pd.DataFrame:
     """
-    Combine all 7 feature scores into one final ranking score using weights.
+    Combine all 5 feature scores into one final ranking score using weights.
     Weights are pulled dynamically from jd_schema, or fall back to defaults.
     """
     print("Computing final scores...")
@@ -30,24 +30,16 @@ def compute_final_score(df: pd.DataFrame, jd_schema: CanonicalJobDescription = N
 
     # ── STEP 1: Compute base weighted score ──
     base_score = (
-        active_weights.get("semantic_similarity", 0.35) * df["semantic_similarity"] +
+        active_weights.get("semantic_similarity", 0.50) * df["semantic_similarity"] +
         active_weights.get("title_relevance", 0.20)     * df["title_relevance"]     +
-        active_weights.get("behavioral", 0.15)          * df["behavioral"]          +
         active_weights.get("experience_fit", 0.10)      * df["experience_fit"]      +
-        active_weights.get("career_quality", 0.10)      * df["career_quality"]      +
         active_weights.get("skill_depth", 0.05)         * df["skill_depth"]         +
-        active_weights.get("location", 0.05)            * df["location_score"]
+        active_weights.get("location", 0.15)            * df["location_score"]
     )
 
     # ── STEP 2: Apply title gate as a MULTIPLIER ──
     title_gate = 0.35 + 0.65 * df["title_relevance"]
     df["final_score"] = base_score * title_gate
-
-    # ── HONEYPOT PENALTY ──
-    honeypot_count = df["is_honeypot"].sum()
-    if honeypot_count > 0:
-        print(f"  Detected {honeypot_count} honeypot candidates — penalizing scores.")
-    df.loc[df["is_honeypot"] == True, "final_score"] = 0.0
 
     # ── SORT AND RANK ──
     df = df.sort_values("final_score", ascending=False).reset_index(drop=True)

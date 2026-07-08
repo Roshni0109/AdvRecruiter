@@ -334,13 +334,11 @@ def normalize_job_description(jd_text: str) -> CanonicalJobDescription:
 
     # 5. Weights allocation based on JD contents
     weights = {
-        "semantic_similarity": 0.35,
+        "semantic_similarity": 0.50,
         "title_relevance": 0.20,
-        "behavioral": 0.15,
         "experience_fit": 0.10,
-        "career_quality": 0.10,
         "skill_depth": 0.05,
-        "location": 0.05
+        "location": 0.15
     }
 
     return CanonicalJobDescription(

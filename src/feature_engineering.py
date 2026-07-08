@@ -17,13 +17,11 @@ EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 
 # ── BACKWARD COMPATIBLE FALLBACK CONSTANTS ──────────────────────────────────
 WEIGHTS = {
-    "semantic_similarity":  0.35,
+    "semantic_similarity":  0.50,
     "title_relevance":      0.20,
-    "behavioral":           0.15,
     "experience_fit":       0.10,
-    "career_quality":       0.10,
     "skill_depth":          0.05,
-    "location":             0.05,
+    "location":             0.15,
 }
 
 TITLE_RELEVANCE_MAP = [
@@ -433,22 +431,8 @@ def compute_all_features(
             jd_schema
         )
 
-        behav = score_behavioral_availability(
-            cand.get("last_active_days", 9999),
-            cand.get("open_to_work", 0),
-            cand.get("response_rate", 0.0),
-            cand.get("notice_days", 90),
-            cand.get("interview_rate", 0.0),
-            cand.get("response_time_hrs", 999.0)
-        )
-
-        career_q = score_career_quality(
-            cand.get("total_companies", 0),
-            services_company_count,
-            cand.get("max_tenure_months", 0),
-            cand.get("avg_tenure_months", 0.0),
-            cand.get("career_text", "")
-        )
+        behav = 0.0
+        career_q = 0.0
 
         expert_skills = sum(1 for s in skills if isinstance(s, dict) and s.get("proficiency") == "expert")
         advanced_skills = sum(1 for s in skills if isinstance(s, dict) and s.get("proficiency") in ("expert", "advanced"))

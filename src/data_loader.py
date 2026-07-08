@@ -167,37 +167,13 @@ def extract_candidate_features(raw: dict) -> dict:
     cand_dict["in_india"] = int(canonical.country.lower() == "india")
     cand_dict["is_non_ai_title"] = int(any(title in canonical.current_title.lower() for title in NON_AI_TITLES))
 
-    # Detect honeypot
-    cand_dict["is_honeypot"] = _detect_honeypot(raw, career_list, skills, canonical.years_exp)
+    # Detect honeypot (Disabled)
+    cand_dict["is_honeypot"] = False
 
     # Make city/location mapping consistent
     cand_dict["city"] = canonical.location
 
     return cand_dict
-
-
-def _detect_honeypot(
-    raw: dict,
-    career: list,
-    skills: list,
-    years_exp: float
-) -> bool:
-    """Detect impossible/suspicious candidate records (Honeypots)."""
-    total_career_months = sum(job.get("duration_months", 0) for job in career if isinstance(job, dict))
-    total_career_years  = total_career_months / 12
-
-    if years_exp > 0 and total_career_years > 0:
-        if years_exp > total_career_years + 3:
-            return True
-
-    expert_zero_duration = sum(
-        1 for s in skills
-        if isinstance(s, dict) and s.get("proficiency") == "expert" and s.get("duration_months", 0) == 0
-    )
-    if expert_zero_duration >= 5:
-        return True
-
-    return False
 
 
 if __name__ == "__main__":
